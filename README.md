@@ -12,6 +12,7 @@ Lose Condition:
     
     
 Offensive Agent:
+
     Primary Components:
         -Eat all dots in enemy territory
         -Eat all the berries in enemy territory
