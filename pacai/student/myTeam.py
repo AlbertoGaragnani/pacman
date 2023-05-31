@@ -2,8 +2,9 @@ from pacai.agents.capture.capture import CaptureAgent
 from pacai.core.directions import Directions
 import random
 from pacai.util import util
-def createTeam(firstIndex, secondIndex, isRed):
 
+
+def createTeam(firstIndex, secondIndex, isRed):
     firstAgent = DefensiveAgent
     secondAgent = OffensiveAgent
 
@@ -64,17 +65,12 @@ class ReflexAgent(CaptureAgent):
         stateEval = sum(features[feature] * weights[feature] for feature in features)
         return stateEval
 
-    
 
 class DefensiveAgent(ReflexAgent):
 
     def __init__(self, index, **kwargs):
         super().__init__(index)
 
-    # def getFeatures(self, gameState, action):
-
-    # def getWeights(self, gameState, action):
-    
     def getFeatures(self, gameState, action):
         features = {}
 
@@ -116,17 +112,15 @@ class DefensiveAgent(ReflexAgent):
             'onDefense': 100,
             'invaderDistance': -100,
             'stop': -100,
-            'reverse': -2
+            'reverse': -2,
+            'distanceToCapsule': -1
         }
-    
+
+
 class OffensiveAgent(ReflexAgent):
 
     def __init__(self, index, **kwargs):
         super().__init__(index)
-
-    # def getFeatures(self, gameState, action):
-
-    # def getWeights(self, gameState, action):
 
     def getFeatures(self, gameState, action):
         features = {}
@@ -135,23 +129,24 @@ class OffensiveAgent(ReflexAgent):
         features['successorScore'] = self.getScore(successor)
         myState = successor.getAgentState(self.index)
         myPos = myState.getPosition()
-        distTrue = False
+        distToClosestDefender = -1
         # Computes whether we're on defense (1) or offense (0).
-
 
         # Computes distance to invaders we can see.
         enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
         invaders = [a for a in enemies if a.isPacman() and a.getPosition() is not None]
-        
-        if (len(invaders) > 0):
-            dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
-            distTrue = True
+        defenders = [a for a in enemies if not a.isPacman() and a.getPosition() is not None]
 
-        if (distTrue == True):
+        distToClosestDefender = \
+            min([self.getMazeDistance(myPos, a.getPosition()) for a in defenders])
+
+        if len(invaders) > 0:
+            dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
             if (min(dists) < 3) and myState.isPacman() == 0:
                 features['besideEnemy'] = 100 / min(dists)
+
         features['numInvaders'] = len(invaders)
-        
+
         # Compute distance to the nearest food.
         foodList = self.getFood(successor).asList()
 
@@ -160,7 +155,17 @@ class OffensiveAgent(ReflexAgent):
             myPos = successor.getAgentState(self.index).getPosition()
             minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
             features['distanceToFood'] = minDistance
-        
+
+        # Compute distance to the nearest capsule
+        capsuleList = self.getCapsules(successor)
+
+        if len(capsuleList) > 0:
+            myPos = successor.getAgentState(self.index).getPosition()
+            minDistance = min([self.getMazeDistance(myPos, capsule) for capsule in capsuleList])
+            if minDistance < 3 and minDistance < distToClosestDefender / 2:
+                features['distanceToCapsule'] = 100  # To change
+            else:
+                features['distanceToCapsule'] = minDistance
 
         return features
 
@@ -171,7 +176,8 @@ class OffensiveAgent(ReflexAgent):
             'successorScore': 100,
             'distanceToFood': -1,
             'stop': -100,
-            'reverse': -2
+            'reverse': -2,
+            'distanceToCapsule': -0.5
         }
 
 # ASTAR ALGORITHM
