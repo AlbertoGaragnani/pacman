@@ -23,7 +23,7 @@ class ReflexAgent(CaptureAgent):
     # def getSuccessor(self, gameState, action):
 
     # def evaluate(self, gameState, action):
-
+    #
     # def getFeatures(self, gameState, action):
 
     # def getWeights(self, gameState, action):
