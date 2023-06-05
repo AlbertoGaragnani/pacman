@@ -15,6 +15,7 @@ def createTeam(firstIndex, secondIndex, isRed):
 
 
 class ReflexAgent(CaptureAgent):
+    
     def __init__(self, index, **kwargs):
         super().__init__(index, **kwargs)
 
@@ -23,7 +24,7 @@ class ReflexAgent(CaptureAgent):
     # def getSuccessor(self, gameState, action):
 
     # def evaluate(self, gameState, action):
-
+    #
     # def getFeatures(self, gameState, action):
 
     # def getWeights(self, gameState, action):
@@ -62,9 +63,115 @@ class ReflexAgent(CaptureAgent):
 
         features = self.getFeatures(gameState, action)
         weights = self.getWeights(gameState, action)
-        stateEval = sum(features[feature] * weights[feature] for feature in features)
+        #stateEval = sum(features[feature] * weights[feature] for feature in features)
+        stateEval = 0
+        for feature in features:
+            if features[feature] is not None:
+                stateEval += features[feature] * weights[feature]
         return stateEval
 
+## --= Feature Functions =-- ##
+
+    # Figures out role of agent
+    def fRole(self, gameState, action):
+        successor = self.getSuccessor(gameState, action)
+        myState = successor.getAgentState(self.index)
+        if (myState.isPacman()):
+            return 0
+        return 1
+    
+    # Figures out stop action
+    def fStop(self, gameState, action):
+        if (action == Directions.STOP):
+            return 1
+        return # might have to change this function
+    
+    # Figures out reverse action
+    def fReverse(self, gameState, action):
+        rev = Directions.REVERSE[gameState.getAgentState(self.index).getDirection()]
+        if (action == rev):
+            return 1
+        return # Might have to change this function too
+
+    # Calculates number of invaders nearby
+    def fNumInvaders(self, gameState, action):
+        successor = self.getSuccessor(gameState, action)
+    
+        # Computes distance to invaders we can see.
+        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+        invaders = [a for a in enemies if a.isPacman() and a.getPosition() is not None]
+        return len(invaders)
+        #features['numInvaders'] = len(invaders)
+
+    # Calculates distance of invaders nearby
+    def fDistInvaders(self, gameState, action):
+        successor = self.getSuccessor(gameState, action)
+        myState = successor.getAgentState(self.index)
+        myPos = myState.getPosition()
+
+        # Computes distance to invaders we can see.
+        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+        invaders = [a for a in enemies if a.isPacman() and a.getPosition() is not None]
+        numInvaders = self.fNumInvaders(gameState, action)
+    
+        if (numInvaders > 0):
+            dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
+
+            return min(dists)
+            #features['invaderDistance'] = min(dists)
+        return
+    
+    # Calculates distances to foods
+    def fFoodDist(self, gameState, action):
+        successor = self.getSuccessor(gameState, action)
+        myState = successor.getAgentState(self.index)
+        myPos = myState.getPosition()
+        foodList = self.getFood(successor).asList()
+
+        if (len(foodList) > 0):
+            myPos = successor.getAgentState(self.index).getPosition()
+            minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
+            return minDistance
+        return
+    
+    def fDistDefenders(self, gameState, action):
+        successor = self.getSuccessor(gameState, action)
+        myState = successor.getAgentState(self.index)
+        myPos = myState.getPosition()
+
+        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+        #invaders = [a for a in enemies if a.isPacman() and a.getPosition() is not None]
+        defenders = [a for a in enemies if not a.isPacman() and a.getPosition() is not None]
+       
+        #distToClosestDefender = -1
+        #distToClosestDefender = min([self.getMazeDistance(myPos, a.getPosition()) for a in defenders])
+
+        tooClose = 3
+
+        if len(defenders) > 0:
+            dists = [self.getMazeDistance(myPos, a.getPosition()) for a in defenders]
+            if (min(dists) < tooClose) and myState.isPacman() == 0:
+                return 100 / min(dists)
+        return
+
+
+    def fDistToCapsule(self, gameState, action):
+        successor = self.getSuccessor(gameState, action)
+        myState = successor.getAgentState(self.index)
+        myPos = myState.getPosition()
+        
+        capsuleList = self.getCapsules(successor)
+        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+        defenders = [a for a in enemies if not a.isPacman() and a.getPosition() is not None]
+        distToClosestDefender = min([self.getMazeDistance(myPos, a.getPosition()) for a in defenders])
+
+        if len(capsuleList) > 0:
+    
+            minCapDistance = min([self.getMazeDistance(myPos, capsule) for capsule in capsuleList])
+            if minCapDistance < 3 and minCapDistance < distToClosestDefender / 2:
+                return 100  # To change
+            else:
+                return minCapDistance
 
 class DefensiveAgent(ReflexAgent):
 
@@ -74,35 +181,24 @@ class DefensiveAgent(ReflexAgent):
     def getFeatures(self, gameState, action):
         features = {}
 
-        successor = self.getSuccessor(gameState, action)
-        myState = successor.getAgentState(self.index)
-        myPos = myState.getPosition()
-
         # Computes whether we're on defense (1) or offense (0).
-        features['onDefense'] = 1
-        if (myState.isPacman()):
-            features['onDefense'] = 0
+        features['onDefense'] = self.fRole(gameState, action)
+    
+        # Computes number of invaders we can see.
+        features['numInvaders'] = self.fNumInvaders(gameState, action)
 
-        # Computes distance to invaders we can see.
-        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-        invaders = [a for a in enemies if a.isPacman() and a.getPosition() is not None]
-        features['numInvaders'] = len(invaders)
+        # Computes distance of invaders we can see.
+        features['invaderDistance'] = self.fDistInvaders(gameState, action)
 
-        if (len(invaders) > 0):
-            dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
-            features['invaderDistance'] = min(dists)
+        #Stop Feature
+        features['stop'] = self.fStop(gameState, action)
 
-        if (action == Directions.STOP):
-            features['stop'] = 1
+        #Reverse Feature
+        features['reverse'] = self.fReverse(gameState, action)
+        
+        #Food Feature
+        features['distanceToFood'] = self.fFoodDist(gameState, action)
 
-        rev = Directions.REVERSE[gameState.getAgentState(self.index).getDirection()]
-        if (action == rev):
-            features['reverse'] = 1
-        foodList = self.getFood(successor).asList()
-        if (len(foodList) > 0):
-            myPos = successor.getAgentState(self.index).getPosition()
-            minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-            features['distanceToFood'] = minDistance
         return features
 
     def getWeights(self, gameState, action):
@@ -125,47 +221,26 @@ class OffensiveAgent(ReflexAgent):
     def getFeatures(self, gameState, action):
         features = {}
         successor = self.getSuccessor(gameState, action)
-
-        features['successorScore'] = self.getScore(successor)
         myState = successor.getAgentState(self.index)
         myPos = myState.getPosition()
-        distToClosestDefender = -1
+
+        # Getting succ score
+        features['successorScore'] = self.getScore(successor)
+        
         # Computes whether we're on defense (1) or offense (0).
-
-        # Computes distance to invaders we can see.
-        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-        invaders = [a for a in enemies if a.isPacman() and a.getPosition() is not None]
-        defenders = [a for a in enemies if not a.isPacman() and a.getPosition() is not None]
-
-        distToClosestDefender = \
-            min([self.getMazeDistance(myPos, a.getPosition()) for a in defenders])
-
-        if len(invaders) > 0:
-            dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
-            if (min(dists) < 3) and myState.isPacman() == 0:
-                features['besideEnemy'] = 100 / min(dists)
-
-        features['numInvaders'] = len(invaders)
+        #features['onDefense'] = self.fRole(gameState, action)
+       
+        # Computes distance to defenders we can see.
+        features['besideEnemy'] = self.fDistDefenders(gameState, action)
+        
+        # Computes number of invaders
+        features['numInvaders'] = self.fNumInvaders(gameState, action)
 
         # Compute distance to the nearest food.
-        foodList = self.getFood(successor).asList()
-
-        # This should always be True, but better safe than sorry.
-        if (len(foodList) > 0):
-            myPos = successor.getAgentState(self.index).getPosition()
-            minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-            features['distanceToFood'] = minDistance
+        features['distanceToFood'] = self.fFoodDist(gameState, action)
 
         # Compute distance to the nearest capsule
-        capsuleList = self.getCapsules(successor)
-
-        if len(capsuleList) > 0:
-            myPos = successor.getAgentState(self.index).getPosition()
-            minDistance = min([self.getMazeDistance(myPos, capsule) for capsule in capsuleList])
-            if minDistance < 3 and minDistance < distToClosestDefender / 2:
-                features['distanceToCapsule'] = 100  # To change
-            else:
-                features['distanceToCapsule'] = minDistance
+        features['distanceToCapsule'] = self.fDistToCapsule(gameState, action)
 
         return features
 
