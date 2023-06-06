@@ -19,6 +19,47 @@ class ReflexAgent(CaptureAgent):
     def __init__(self, index, **kwargs):
         super().__init__(index, **kwargs)
 
+    # Matching Function
+    def shadowFunction(self, gameState, action, enemyIndex):
+        # Hard-coding the tiles
+        # [0] Top
+        # [1] Central
+        # [2] Bottom
+        tilesToDefend = [(12, 12), (15, 8), (11, 3)]
+
+        successor = self.getSuccessor(gameState, action)
+        myState = successor.getAgentState(self.index)
+        myPos = myState.getPosition()
+        enemyPosition = successor.getAgentState(enemyIndex).getPosition()
+
+        enemyToTop = self.getMazeDistance(tilesToDefend[0], enemyPosition)
+        enemyToCenter = self.getMazeDistance(tilesToDefend[1], enemyPosition)
+        enemyToBottom = self.getMazeDistance(tilesToDefend[2], enemyPosition)
+
+        distances = [enemyToTop, enemyToCenter, enemyToBottom]
+
+        enemyDistanceFromClosestEntrance = min(distances)
+
+        if enemyToTop == enemyDistanceFromClosestEntrance:
+            # Defend top
+            distanceToTop = self.getMazeDistance(myPos, tilesToDefend[0])
+            return distanceToTop
+        elif enemyToCenter == enemyDistanceFromClosestEntrance:
+            # Defend center
+            distanceToCenter = self.getMazeDistance(myPos, tilesToDefend[1])
+            return distanceToCenter
+        else:
+            # Defend bottom
+            distanceToBottom = self.getMazeDistance(myPos, tilesToDefend[2])
+            return distanceToBottom
+
+    def ambushFunction(self, gameState, action, enemyIndex):
+        successor = self.getSuccessor(gameState, action)
+        enemyPosition = successor.getAgentState(enemyIndex).getPosition()
+
+        if enemyPosition == (30, 14):
+            return 100
+
     def chooseAction(self, gameState):
         """
         Picks among the actions with the highest return from `ReflexCaptureAgent.evaluate`.
@@ -172,23 +213,31 @@ class DefensiveAgent(ReflexAgent):
     def getFeatures(self, gameState, action):
         features = {}
 
-        # Computes whether we're on defense (1) or offense (0).
-        features['onDefense'] = self.fRole(gameState, action)
+        # # Computes whether we're on defense (1) or offense (0).
+        # features['onDefense'] = self.fRole(gameState, action)
+        #
+        # # Computes number of invaders we can see.
+        # features['numInvaders'] = self.fNumInvaders(gameState, action)
+        #
+        # # Computes distance of invaders we can see.
+        # features['invaderDistance'] = self.fDistInvaders(gameState, action)
+        #
+        # # Stop Feature
+        # features['stop'] = self.fStop(gameState, action)
+        #
+        # # Reverse Feature
+        # features['reverse'] = self.fReverse(gameState, action)
+        #
+        # # Food Feature
+        # features['distanceToFood'] = self.fFoodDist(gameState, action)
 
-        # Computes number of invaders we can see.
-        features['numInvaders'] = self.fNumInvaders(gameState, action)
+        opponentIndex = self.getOpponents(gameState)[0]
 
-        # Computes distance of invaders we can see.
-        features['invaderDistance'] = self.fDistInvaders(gameState, action)
+        # Shadow function feature
+        features['shadow'] = self.shadowFunction(gameState, action, opponentIndex)
 
-        # Stop Feature
-        features['stop'] = self.fStop(gameState, action)
-
-        # Reverse Feature
-        features['reverse'] = self.fReverse(gameState, action)
-
-        # Food Feature
-        features['distanceToFood'] = self.fFoodDist(gameState, action)
+        # Ambush function feature
+        features['killPacman'] = self.ambushFunction(gameState, action, opponentIndex)
 
         return features
 
@@ -200,7 +249,9 @@ class DefensiveAgent(ReflexAgent):
             'invaderDistance': -100,
             'stop': -100,
             'reverse': -2,
-            'distanceToCapsule': -1
+            'distanceToCapsule': -1,
+            'shadow': -5,
+            'killPacman': 100
         }
 
 
@@ -215,23 +266,31 @@ class OffensiveAgent(ReflexAgent):
         myState = successor.getAgentState(self.index)
         myPos = myState.getPosition()
 
-        # Getting succ score
-        features['successorScore'] = self.getScore(successor)
+        # # Getting succ score
+        # features['successorScore'] = self.getScore(successor)
+        #
+        # # Computes whether we're on defense (1) or offense (0).
+        # # features['onDefense'] = self.fRole(gameState, action)
+        #
+        # # Computes distance to defenders we can see.
+        # features['besideEnemy'] = self.fDistDefenders(gameState, action)
+        #
+        # # Computes number of invaders
+        # features['numInvaders'] = self.fNumInvaders(gameState, action)
+        #
+        # # Compute distance to the nearest food.
+        # features['distanceToFood'] = self.fFoodDist(gameState, action)
+        #
+        # # Compute distance to the nearest capsule
+        # features['distanceToCapsule'] = self.fDistToCapsule(gameState, action)
 
-        # Computes whether we're on defense (1) or offense (0).
-        # features['onDefense'] = self.fRole(gameState, action)
+        opponentIndex = self.getOpponents(gameState)[1]
 
-        # Computes distance to defenders we can see.
-        features['besideEnemy'] = self.fDistDefenders(gameState, action)
+        # Shadow function feature
+        features['shadow'] = self.shadowFunction(gameState, action, opponentIndex)
 
-        # Computes number of invaders
-        features['numInvaders'] = self.fNumInvaders(gameState, action)
-
-        # Compute distance to the nearest food.
-        features['distanceToFood'] = self.fFoodDist(gameState, action)
-
-        # Compute distance to the nearest capsule
-        features['distanceToCapsule'] = self.fDistToCapsule(gameState, action)
+        # Ambush function feature
+        features['killPacman'] = self.ambushFunction(gameState, action, opponentIndex)
 
         return features
 
@@ -243,32 +302,7 @@ class OffensiveAgent(ReflexAgent):
             'distanceToFood': -1,
             'stop': -100,
             'reverse': -2,
-            'distanceToCapsule': -0.5
+            'distanceToCapsule': -0.5,
+            'shadow': -5,
+            'killPacman': 100
         }
-
-# ASTAR ALGORITHM
-# def aStarSearch(problem, heuristic):
-#     """
-#     Search the node that has the lowest combined cost and heuristic first.
-#     """
-#     from pacai.util.priorityQueue import PriorityQueue
-#
-#     # Initialize structs
-#     fringe = PriorityQueue()
-#     visited = set()
-#     pathToNode = []
-#
-#     fringe.push((problem.startingState(), pathToNode), 0)
-#
-#     while not fringe.isEmpty():
-#         state, path = fringe.pop()
-#         if problem.isGoal(state):
-#             return path
-#
-#         if state not in visited:
-#             visited.add(state)
-#             for succState, action, cost in problem.successorStates(state):
-#                 if succState not in visited:
-#                     totalCost = problem.actionsCost(path + [action])
-#                     fringe.push((succState, path + [action]),
-#                                 totalCost + heuristic(succState, problem))
