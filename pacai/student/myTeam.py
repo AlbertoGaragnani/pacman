@@ -20,17 +20,27 @@ class ReflexAgent(CaptureAgent):
         super().__init__(index, **kwargs)
 
     # Matching Function
-    def shadowFunction(self, gameState, action, enemyIndex):
+    def shadowFunction(self, gameState, action):
         # Hard-coding the tiles
         # [0] Top
         # [1] Central
         # [2] Bottom
         tilesToDefend = [(12, 12), (15, 8), (11, 3)]
+        #redTeamEntrances = []
+        #blueTeamEntrances = []
 
+        #Picking which side we need to defend
+        """
+        if (self.fGetTeam(gameState, action) == 0):
+            tilesToDefend = redTeamEntrances
+        else:
+            tilesToDefend = blueTeamEntrances
+        """
         successor = self.getSuccessor(gameState, action)
         myState = successor.getAgentState(self.index)
         myPos = myState.getPosition()
-        enemyPosition = successor.getAgentState(enemyIndex).getPosition()
+        opponentIndex = self.getOpponents(gameState)[0]
+        enemyPosition = successor.getAgentState(opponentIndex).getPosition()
 
         enemyToTop = self.getMazeDistance(tilesToDefend[0], enemyPosition)
         enemyToCenter = self.getMazeDistance(tilesToDefend[1], enemyPosition)
@@ -53,10 +63,11 @@ class ReflexAgent(CaptureAgent):
             distanceToBottom = self.getMazeDistance(myPos, tilesToDefend[2])
             return distanceToBottom
 
-    def ambushFunction(self, gameState, action, enemyIndex):
+    def ambushFunction(self, gameState, action):
         successor = self.getSuccessor(gameState, action)
-        enemyPosition = successor.getAgentState(enemyIndex).getPosition()
-
+        opponentIndex = self.getOpponents(gameState)[0]
+        enemyPosition = successor.getAgentState(opponentIndex).getPosition()
+        
         if enemyPosition == (30, 14):
             return 100
 
@@ -138,7 +149,6 @@ class ReflexAgent(CaptureAgent):
         enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
         invaders = [a for a in enemies if a.isPacman() and a.getPosition() is not None]
         return len(invaders)
-        # features['numInvaders'] = len(invaders)
 
     # Calculates distance of invaders nearby
     def fDistInvaders(self, gameState, action):
@@ -155,7 +165,6 @@ class ReflexAgent(CaptureAgent):
             dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
 
             return min(dists)
-            # features['invaderDistance'] = min(dists)
         return
 
     # Calculates distances to foods
@@ -177,12 +186,7 @@ class ReflexAgent(CaptureAgent):
         myPos = myState.getPosition()
 
         enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-        # invaders = [a for a in enemies if a.isPacman() and a.getPosition() is not None]
         defenders = [a for a in enemies if not a.isPacman() and a.getPosition() is not None]
-
-        # distToClosestDefender = -1
-        # distToClosestDefender = min([self.getMazeDistance(myPos, a.getPosition()) for a in defenders])
-
         tooClose = 3
 
         if len(defenders) > 0:
@@ -237,13 +241,11 @@ class DefensiveAgent(ReflexAgent):
         # # Food Feature
         # features['distanceToFood'] = self.fFoodDist(gameState, action)
 
-        opponentIndex = self.getOpponents(gameState)[0]
-
         # Shadow function feature
-        features['shadow'] = self.shadowFunction(gameState, action, opponentIndex)
+        features['shadow'] = self.shadowFunction(gameState, action)
 
         # Ambush function feature
-        features['killPacman'] = self.ambushFunction(gameState, action, opponentIndex)
+        features['killPacman'] = self.ambushFunction(gameState, action)
 
         return features
 
