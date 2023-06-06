@@ -103,6 +103,12 @@ class ReflexAgent(CaptureAgent):
 
     ## --= Feature Functions =-- ##
 
+    # Gets the team color of our agent. 0 is red, 1 is blue
+    def fGetTeam(self, gameState, action):
+        if (self.getTeam(gameState) == gameState.getRedTeamIndicies()):
+            return 0
+        return 1
+
     # Figures out role of agent
     def fRole(self, gameState, action):
         successor = self.getSuccessor(gameState, action)
