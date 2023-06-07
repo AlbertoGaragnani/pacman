@@ -18,47 +18,171 @@ class ReflexAgent(CaptureAgent):
 
     def __init__(self, index, **kwargs):
         super().__init__(index, **kwargs)
-
-    # Matching Function
-    def shadowFunction(self, gameState, action, enemyIndex):
-        # Hard-coding the tiles
+        self.RED_RESPAWN_TILES = [(1, 2), (1, 1)]  # The red agents respawn on those
+        self.BLUE_RESPAWN_TILES = [(30, 13), (30, 14)]  # The blue agents respawn on those
+        """
+        # Hard-coding the entrance tiles that are our points of interest (POI)
         # [0] Top
         # [1] Central
-        # [2] Bottom
-        tilesToDefend = [(12, 12), (15, 8), (11, 3)]
+        # [2] CenterBottom
+        # [3] Bottom
+        """
+        self.redTeamEntrances = [(12, 12), (14, 8), (13, 4), (11, 3)]
+        self.blueTeamEntrances = [(20, 12), (17, 8), (18, 11), (19, 3)]
 
-        successor = self.getSuccessor(gameState, action)
-        myState = successor.getAgentState(self.index)
-        myPos = myState.getPosition()
-        enemyPosition = successor.getAgentState(enemyIndex).getPosition()
+    # Matching Function
+    def fShadowFunction(self, gameState, action, enemyIndex):
+        if not gameState.getAgentState(self.index).isPacman():
+            tilesToDefend = []
 
-        enemyToTop = self.getMazeDistance(tilesToDefend[0], enemyPosition)
-        enemyToCenter = self.getMazeDistance(tilesToDefend[1], enemyPosition)
-        enemyToBottom = self.getMazeDistance(tilesToDefend[2], enemyPosition)
+            # Picking which side we need to defend
+            if self.red:
+                tilesToDefend = self.redTeamEntrances
+            else:
+                tilesToDefend = self.blueTeamEntrances
 
-        distances = [enemyToTop, enemyToCenter, enemyToBottom]
+            successor = self.getSuccessor(gameState, action)
+            myState = successor.getAgentState(self.index)
+            myPos = myState.getPosition()
+            enemyPosition = successor.getAgentState(enemyIndex).getPosition()
 
-        enemyDistanceFromClosestEntrance = min(distances)
+            enemyToTop = self.getMazeDistance(tilesToDefend[0], enemyPosition)
+            enemyToCenter = self.getMazeDistance(tilesToDefend[1], enemyPosition)
+            enemyToCenterBottom = self.getMazeDistance(tilesToDefend[2], enemyPosition)
+            enemyToBottom = self.getMazeDistance(tilesToDefend[3], enemyPosition)
 
-        if enemyToTop == enemyDistanceFromClosestEntrance:
-            # Defend top
-            distanceToTop = self.getMazeDistance(myPos, tilesToDefend[0])
-            return distanceToTop
-        elif enemyToCenter == enemyDistanceFromClosestEntrance:
-            # Defend center
-            distanceToCenter = self.getMazeDistance(myPos, tilesToDefend[1])
-            return distanceToCenter
+            distances = [enemyToTop, enemyToCenter, enemyToCenterBottom, enemyToBottom]
+
+            enemyDistanceFromClosestEntrance = min(distances)
+
+            if enemyToTop == enemyDistanceFromClosestEntrance:
+                # Defend top
+                distanceToTop = self.getMazeDistance(myPos, tilesToDefend[0])
+                return distanceToTop
+            elif enemyToCenter == enemyDistanceFromClosestEntrance:
+                # Defend center
+                distanceToCenter = self.getMazeDistance(myPos, tilesToDefend[1])
+                return distanceToCenter
+            elif enemyToCenterBottom == enemyDistanceFromClosestEntrance:
+                # Defend center bottom
+                distanceToCenterBottom = self.getMazeDistance(myPos, tilesToDefend[2])
+                return distanceToCenterBottom
+            else:
+                # Defend bottom
+                distanceToBottom = self.getMazeDistance(myPos, tilesToDefend[3])
+                return distanceToBottom
         else:
-            # Defend bottom
-            distanceToBottom = self.getMazeDistance(myPos, tilesToDefend[2])
-            return distanceToBottom
+            # We are a Pacman, so we don't care about this feature
+            return
 
-    def ambushFunction(self, gameState, action, enemyIndex):
-        successor = self.getSuccessor(gameState, action)
-        enemyPosition = successor.getAgentState(enemyIndex).getPosition()
+    # This causes problems
+    def fBeatDummyAgent(self, gameState, action):
+        if self.red:
+            if gameState.getScore() == 0 and action == Directions.SOUTH and \
+                    gameState.getAgentState(self.index).getPosition() == self.redTeamEntrances[1]:  # Center
+                return 1
+            else:
+                return 0
+        else:
+            if gameState.getScore() == 0 and action == Directions.SOUTH and \
+                    gameState.getAgentState(self.index).getPosition() == self.blueTeamEntrances[1]:  # Center
+                return 1
+            else:
+                return 0
 
-        if enemyPosition == (30, 14):
-            return 100
+    # Makes a ghost agent that just ate his enemy become a pacman on the closest border location
+    def fStartAttack(self, gameState, action, enemyIndex):
+        if not gameState.getAgentState(self.index).isPacman() and gameState.getScore() <= 0:
+            successor = self.getSuccessor(gameState, action)
+            currentState = gameState.getAgentState(self.index)
+            currentPos = currentState.getPosition()
+            myNextState = successor.getAgentState(self.index)
+            myNextPos = myNextState.getPosition()
+            enemyPosition = successor.getAgentState(enemyIndex).getPosition()
+            redBorderPositions = []
+            blueBorderPositions = []
+            for y in range(1, 15):
+                if not gameState.hasWall(15, y) and not gameState.hasWall(16, y):
+                    redBorderPositions.append((15, y))
+                    blueBorderPositions.append((16, y))
+
+            if self.red:
+                closestBorderPos = min(redBorderPositions, key=lambda pos: self.getMazeDistance(pos, currentPos))
+                if enemyPosition[0] == 30:  # If the enemy is in the respawn corridor
+                    if not currentState.isPacman() and myNextState.isPacman():
+                        return -100
+                    else:
+                        return self.getMazeDistance(myNextPos, closestBorderPos)
+            else:
+                closestBorderPos = min(blueBorderPositions, key=lambda pos: self.getMazeDistance(pos, currentPos))
+                if enemyPosition[0] == 1:  # If the enemy is in the respawn corridor
+                    if not currentState.isPacman() and myNextState.isPacman():
+                        return -100
+                    else:
+                        return self.getMazeDistance(myNextPos, closestBorderPos)
+            return 0
+        else:
+            # We are already a Pacman, so we don't care about this feature
+            # Or we are already winning, so we want to camp
+            return
+
+    def fAmbushFunction(self, gameState, action, enemyIndex):
+        if not gameState.getAgentState(self.index).isPacman():
+            successor = self.getSuccessor(gameState, action)
+            enemyPosition = successor.getAgentState(enemyIndex).getPosition()
+
+            if self.red:
+                if enemyPosition == self.BLUE_RESPAWN_TILES[0] or enemyPosition == self.BLUE_RESPAWN_TILES[1]:
+                    return 100
+            else:
+                if enemyPosition == self.RED_RESPAWN_TILES[0] or enemyPosition == self.RED_RESPAWN_TILES[1]:
+                    return 100
+        else:
+            # We are a Pacman, so we don't care about this feature
+            return
+
+    def fOffensiveFunction(self, gameState, action):
+        if gameState.getAgentState(self.index).isPacman():
+            successor = self.getSuccessor(gameState, action)
+            myState = successor.getAgentState(self.index)
+            myPos = myState.getPosition()
+            foodList = self.getFood(successor).asList()
+
+            if successor.getScore() > gameState.getScore():
+                return -100
+
+            if len(foodList):  # and heuristicFunction is True
+                minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
+                return minDistance
+            return
+        else:
+            # We are a ghost, so we don't care about this feature
+            return
+
+    def fBackToDefense(self, gameState, action):
+        if gameState.getAgentState(self.index).isPacman() and gameState.getScore() > 0:
+            successor = self.getSuccessor(gameState, action)
+            currentState = gameState.getAgentState(self.index)
+            currentPos = currentState.getPosition()
+            myNextState = successor.getAgentState(self.index)
+            myNextPos = myNextState.getPosition()
+            redBorderPositions = []
+            blueBorderPositions = []
+            for y in range(1, 15):
+                if not gameState.hasWall(15, y) and not gameState.hasWall(16, y):
+                    redBorderPositions.append((15, y))
+                    blueBorderPositions.append((16, y))
+
+            if self.red:
+                closestBorderPos = min(redBorderPositions, key=lambda pos: self.getMazeDistance(pos, currentPos))
+                return self.getMazeDistance(myNextPos, closestBorderPos)
+            else:
+                closestBorderPos = min(blueBorderPositions, key=lambda pos: self.getMazeDistance(pos, currentPos))
+                return self.getMazeDistance(myNextPos, closestBorderPos)
+        else:
+            # Either we are a ghost so we don't care
+            # Or we didn't collect the food yet
+            return
 
     def chooseAction(self, gameState):
         """
@@ -234,10 +358,22 @@ class DefensiveAgent(ReflexAgent):
         opponentIndex = self.getOpponents(gameState)[0]
 
         # Shadow function feature
-        features['shadow'] = self.shadowFunction(gameState, action, opponentIndex)
+        features['shadow'] = self.fShadowFunction(gameState, action, opponentIndex)
 
         # Ambush function feature
-        features['killPacman'] = self.ambushFunction(gameState, action, opponentIndex)
+        features['killPacman'] = self.fAmbushFunction(gameState, action, opponentIndex)
+
+        # Beat dummy agent feature
+        # features['beatDummyAgent'] = self.fBeatDummyAgent(gameState, action)
+
+        # Start attack feature function
+        features['becomePacman'] = self.fStartAttack(gameState, action, opponentIndex)
+
+        # Go back to defense feature function
+        features['becomeGhost'] = self.fBackToDefense(gameState, action)
+
+        # Chase for the closest food feature function
+        features['eatFood'] = self.fOffensiveFunction(gameState, action)
 
         return features
 
@@ -251,7 +387,11 @@ class DefensiveAgent(ReflexAgent):
             'reverse': -2,
             'distanceToCapsule': -1,
             'shadow': -5,
-            'killPacman': 100
+            'killPacman': 100,
+            'beatDummyAgent': 50,
+            'becomePacman': -25,
+            'becomeGhost': -10,
+            'eatFood': -1
         }
 
 
@@ -287,10 +427,22 @@ class OffensiveAgent(ReflexAgent):
         opponentIndex = self.getOpponents(gameState)[1]
 
         # Shadow function feature
-        features['shadow'] = self.shadowFunction(gameState, action, opponentIndex)
+        features['shadow'] = self.fShadowFunction(gameState, action, opponentIndex)
 
         # Ambush function feature
-        features['killPacman'] = self.ambushFunction(gameState, action, opponentIndex)
+        features['killPacman'] = self.fAmbushFunction(gameState, action, opponentIndex)
+
+        # Beat dummy agent feature
+        # features['beatDummyAgent'] = self.fBeatDummyAgent(gameState, action)
+
+        # Start attack feature function
+        features['becomePacman'] = self.fStartAttack(gameState, action, opponentIndex)
+
+        # Go back to defense feature function
+        features['becomeGhost'] = self.fBackToDefense(gameState, action)
+
+        # Chase for the closest food feature function
+        features['eatFood'] = self.fOffensiveFunction(gameState, action)
 
         return features
 
@@ -304,5 +456,9 @@ class OffensiveAgent(ReflexAgent):
             'reverse': -2,
             'distanceToCapsule': -0.5,
             'shadow': -5,
-            'killPacman': 100
+            'killPacman': 100,
+            'beatDummyAgent': 50,
+            'becomePacman': -25,
+            'becomeGhost': -10,
+            'eatFood': -1
         }
